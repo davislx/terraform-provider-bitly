@@ -13,3 +13,14 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# Built binary
+/terraform-provider-bitly
+
+# Terraform related
+example/.terraform
+!example/.terraform/plugins/davislx.github.io
+example/*.tfstate
+example/*.tfstate.*
+example/*.tfvars
+example/crash.log
