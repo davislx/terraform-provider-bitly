@@ -2,6 +2,7 @@ package bitly
 
 import (
 	"context"
+	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -17,27 +18,26 @@ func resourceBitlink() *schema.Resource {
 		UpdateContext: resourceBitlinkUpdate,
 		DeleteContext: resourceBitlinkDelete,
 		Schema: map[string]*schema.Schema{
-			"link": &schema.Schema{
+			"link": {
 				Type:     schema.TypeString,
 				Optional: true,
 				Computed: true,
 			},
-			"long_url": &schema.Schema{
+			"long_url": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
-			"domain": &schema.Schema{
+			"domain": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"group_guid": &schema.Schema{
+			"title": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"title": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-			},
+		},
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
 		},
 	}
 }
@@ -49,9 +49,10 @@ func resourceBitlinkCreate(ctx context.Context, d *schema.ResourceData, m interf
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	longURL := d.Get("long_url").(string)
-	payload := bitlinks.Bitlink {
-		LongURL: longURL,
+	payload := bitlinks.Bitlink{
+		LongURL: d.Get("long_url").(string),
+		Domain:  d.Get("domain").(string),
+		Title:   d.Get("title").(string),
 	}
 
 	res, err := bc.CreateBitlink(&payload)
@@ -67,40 +68,63 @@ func resourceBitlinkCreate(ctx context.Context, d *schema.ResourceData, m interf
 }
 
 func resourceBitlinkRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// c := m.(*client.Client)
-	// bc := bitlinks.New(c)
+	c := m.(*client.Client)
+	bc := bitlinks.New(c)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	// bitlinkID := d.Id()
+	bitlinkID := d.Id()
 
-	// res, err := bc.RetrieveBitlink()
-	// if err != nil {
-	// 	return diag.FromErr(err)
-	// }
+	res, err := bc.RetrieveBitlink(bitlinkID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
+	d.Set("long_url", res.LongURL)
+	d.Set("link", res.Link)
+	d.Set("domain", "bit.ly")
+	d.Set("title", res.Title)
 	return diags
 }
 
 func resourceBitlinkUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// c := m.(*client.Client)
-	// bc := bitlinks.New(c)
+	c := m.(*client.Client)
+	bc := bitlinks.New(c)
 
-	// bitlinkID := d.Id()
+	bitlinkID := d.Id()
+
+	var bitlinksDetails bitlinks.BitlinkDetails
+
+	// Note: non-paying customer of bitly cannot change the `long_url`
+	if d.HasChange("long_url") {
+		bitlinksDetails.LongURL = d.Get("long_url").(string)
+	}
+	if d.HasChange("title") {
+		bitlinksDetails.Title = d.Get("title").(string)
+	}
+
+	ret, err := bc.UpdateBitlink(bitlinkID, &bitlinksDetails)
+	log.Printf("Update output: %+v\n", ret)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	return resourceBitlinkRead(ctx, d, m)
 }
 
 func resourceBitlinkDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// c := m.(*client.Client)
-	// bc := bitlinks.New(c)
+	c := m.(*client.Client)
+	bc := bitlinks.New(c)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	// bitlinkID := d.Id()
+	bitlinkID := d.Id()
 
+	// Bitly only supports soft delete
+	bc.UpdateBitlink(bitlinkID, &bitlinks.BitlinkDetails{Archived: true})
 
 	// d.SetId("") is automatically called assuming delete returns no errors, but
 	// it is added here for explicitness.
